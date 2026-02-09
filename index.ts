@@ -1,6 +1,54 @@
 import { Type, type Static } from "@sinclair/typebox";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 
+// Plugin configuration interface
+interface PluginConfig {
+    enabled?: boolean;
+    apiKey?: string;
+    defaultSearchEngine?: "search_std" | "search_pro" | "search_pro_sogou" | "search_pro_quark";
+    defaultCount?: number;
+}
+
+// Plugin config schema - inline definition to avoid type portability issues
+const pluginConfigSchema = {
+    parse(value: unknown): PluginConfig {
+        if (!value || typeof value !== "object" || Array.isArray(value)) {
+            return {};
+        }
+        const raw = value as Record<string, unknown>;
+        return {
+            enabled: typeof raw.enabled === "boolean" ? raw.enabled : undefined,
+            apiKey: typeof raw.apiKey === "string" ? raw.apiKey : undefined,
+            defaultSearchEngine:
+                raw.defaultSearchEngine === "search_std" ||
+                    raw.defaultSearchEngine === "search_pro" ||
+                    raw.defaultSearchEngine === "search_pro_sogou" ||
+                    raw.defaultSearchEngine === "search_pro_quark"
+                    ? raw.defaultSearchEngine
+                    : undefined,
+            defaultCount:
+                typeof raw.defaultCount === "number" && raw.defaultCount >= 1 && raw.defaultCount <= 50
+                    ? raw.defaultCount
+                    : undefined,
+        };
+    },
+    uiHints: {
+        apiKey: {
+            label: "BigModel API Key",
+            help: "API key from https://bigmodel.cn/usercenter/proj-mgmt/apikeys",
+            sensitive: true,
+        },
+        defaultSearchEngine: {
+            label: "Default Search Engine",
+            help: "Default search engine: search_std (standard), search_pro (advanced), search_pro_sogou (Sogou), search_pro_quark (Quark)",
+        },
+        defaultCount: {
+            label: "Default Result Count",
+            help: "Default number of results to return (1-50)",
+        },
+    },
+};
+
 // BigModel API types
 const SearchEngineEnum = Type.Union([
     Type.Literal("search_std"),
@@ -164,60 +212,78 @@ function formatSearchResults(results: SearchResultItem[]): string {
 }
 
 /**
- * OpenClaw plugin entry point
+ * BigModel Web Search plugin for OpenClaw
  */
-export default function (api: OpenClawPluginApi): void {
-    api.registerTool({
-        name: "bigmodel_web_search",
-        label: "BigModel Web Search",
-        description:
-            "Search the web using BigModel AI search engine. Returns structured search results with titles, URLs, and content summaries optimized for AI processing. Supports multiple search engines (standard, pro, Sogou, Quark) and time/domain filters.",
-        parameters: WebSearchParameters,
-        async execute(_id, params) {
-            // Get API key from environment
-            const apiKey = process.env.BIGMODEL_API_KEY;
-            if (!apiKey) {
-                return {
-                    content: [
-                        {
-                            type: "text" as const,
-                            text: "Error: BIGMODEL_API_KEY environment variable is not set. Please set it to use the BigModel web search API.",
-                        },
-                    ],
-                    details: { error: true, message: "API key not set" },
-                };
-            }
+const bigmodelWebSearchPlugin = {
+    id: "bigmodel-web-search",
+    name: "BigModel Web Search",
+    description: "Web search tool powered by BigModel AI Web Search API",
+    version: "1.0.0",
+    configSchema: pluginConfigSchema,
+    register(api: OpenClawPluginApi): void {
+        const pluginConfig = pluginConfigSchema.parse(api.pluginConfig);
 
-            try {
-                const response = await performWebSearch(params, apiKey);
-                const formattedResults = formatSearchResults(response.search_result);
+        api.registerTool({
+            name: "bigmodel_web_search",
+            label: "BigModel Web Search",
+            description:
+                "Search the web using BigModel AI search engine. Returns structured search results with titles, URLs, and content summaries optimized for AI processing. Supports multiple search engines (standard, pro, Sogou, Quark) and time/domain filters.",
+            parameters: WebSearchParameters,
+            async execute(_id, params) {
+                // Get API key from plugin config or environment variable
+                const apiKey = pluginConfig.apiKey ?? process.env.BIGMODEL_API_KEY;
+                if (!apiKey) {
+                    return {
+                        content: [
+                            {
+                                type: "text" as const,
+                                text: "Error: BigModel API key is not configured. Please set it in plugin config (plugins.entries.bigmodel-web-search.config.apiKey) or BIGMODEL_API_KEY environment variable.",
+                            },
+                        ],
+                        details: { error: true, message: "API key not configured" },
+                    };
+                }
 
-                return {
-                    content: [
-                        {
-                            type: "text" as const,
-                            text: `## Web Search Results for: "${params.query}"\n\n${formattedResults}`,
-                        },
-                    ],
-                    details: {
-                        query: params.query,
-                        resultCount: response.search_result.length,
-                        searchEngine: params.search_engine ?? "search_std",
-                    },
+                // Apply plugin config defaults
+                const searchParams = {
+                    ...params,
+                    search_engine: params.search_engine ?? pluginConfig.defaultSearchEngine ?? "search_std",
+                    count: params.count ?? pluginConfig.defaultCount ?? 10,
                 };
-            } catch (error) {
-                const errorMessage =
-                    error instanceof Error ? error.message : String(error);
-                return {
-                    content: [
-                        {
-                            type: "text" as const,
-                            text: `Error performing web search: ${errorMessage}`,
+
+                try {
+                    const response = await performWebSearch(searchParams, apiKey);
+                    const formattedResults = formatSearchResults(response.search_result);
+
+                    return {
+                        content: [
+                            {
+                                type: "text" as const,
+                                text: `## Web Search Results for: "${params.query}"\n\n${formattedResults}`,
+                            },
+                        ],
+                        details: {
+                            query: params.query,
+                            resultCount: response.search_result.length,
+                            searchEngine: searchParams.search_engine,
                         },
-                    ],
-                    details: { error: true, message: errorMessage },
-                };
-            }
-        },
-    });
-}
+                    };
+                } catch (error) {
+                    const errorMessage =
+                        error instanceof Error ? error.message : String(error);
+                    return {
+                        content: [
+                            {
+                                type: "text" as const,
+                                text: `Error performing web search: ${errorMessage}`,
+                            },
+                        ],
+                        details: { error: true, message: errorMessage },
+                    };
+                }
+            },
+        });
+    },
+};
+
+export default bigmodelWebSearchPlugin;
