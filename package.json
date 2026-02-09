@@ -14,7 +14,7 @@
     "zai",
     "web-search"
   ],
-  "author": "",
+  "author": "Jack",
   "license": "MIT",
   "packageManager": "pnpm@10.29.2",
   "devDependencies": {

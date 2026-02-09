@@ -215,8 +215,8 @@ function formatSearchResults(results: SearchResultItem[]): string {
  * BigModel Web Search plugin for OpenClaw
  */
 const bigmodelWebSearchPlugin = {
-    id: "bigmodel-web-search",
-    name: "BigModel Web Search",
+    id: "openclaw-bigmode-search",
+    name: "OpenClaw BigModel Web Search",
     description: "Web search tool powered by BigModel AI Web Search API",
     version: "1.0.0",
     configSchema: pluginConfigSchema,
@@ -224,8 +224,8 @@ const bigmodelWebSearchPlugin = {
         const pluginConfig = pluginConfigSchema.parse(api.pluginConfig);
 
         api.registerTool({
-            name: "bigmodel_web_search",
-            label: "BigModel Web Search",
+            name: "web-search",
+            label: "Web Search",
             description:
                 "Search the web using BigModel AI search engine. Returns structured search results with titles, URLs, and content summaries optimized for AI processing. Supports multiple search engines (standard, pro, Sogou, Quark) and time/domain filters.",
             parameters: WebSearchParameters,
