@@ -2,9 +2,10 @@
   "name": "openclaw-bigmodel-search",
   "version": "1.0.0",
   "description": "OpenClaw plugin for BigModel AI web search",
-  "main": "index.ts",
+  "main": "index.js",
   "type": "module",
   "scripts": {
+    "build": "tsc",
     "lint": "tsc --noEmit"
   },
   "keywords": [
@@ -25,7 +26,7 @@
   },
   "openclaw": {
     "extensions": [
-      "./index.ts"
+      "./index.js"
     ]
   }
 }
